@@ -1,0 +1,153 @@
+Let's start by creating the necessary files and directories for our project. We will need the following:
+
+- `public/index.html`: This will be the main HTML file that users interact with.
+- `public/main.js`: This will contain the JavaScript code that powers our app.
+- `public/style.css`: This will contain any custom styles for our app.
+- `server.js`: This will be our Express server.
+- `package.json`: This will contain metadata about our app, including its dependencies.
+
+Here's the code for each file:
+
+public/index.html
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.16/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-800 text-white">
+    <div class="container mx-auto p-4">
+        <h1 class="text-4xl mb-4">Todo App</h1>
+        <form id="add-todo-form" class="mb-4">
+            <input type="text" id="todo-input" class="border-2 border-gray-300 p-2 rounded w-full" placeholder="New todo">
+            <button type="submit" class="mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Add Todo</button>
+        </form>
+        <ul id="todo-list" class="list-disc pl-5">
+            <!-- Todos will be dynamically inserted here -->
+        </ul>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
+```
+
+public/main.js
+
+```js
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('add-todo-form');
+    const input = document.getElementById('todo-input');
+    const list = document.getElementById('todo-list');
+
+    // Fetch existing todos and display them
+    fetch('/todos')
+        .then(response => response.json())
+        .then(todos => {
+            for (const todo of todos) {
+                addTodoToList(todo);
+            }
+        });
+
+    // Add new todo when form is submitted
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (text) {
+            fetch('/todos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text }),
+            })
+                .then(response => response.json())
+                .then(todo => {
+                    addTodoToList(todo);
+                    input.value = '';
+                });
+        }
+    });
+
+    function addTodoToList(todo) {
+        const li = document.createElement('li');
+        li.textContent = todo.text;
+        li.dataset.id = todo.id;
+        li.classList.add('mb-2');
+        list.appendChild(li);
+    }
+});
+```
+
+public/style.css
+
+```css
+body {
+    font-family: 'Arial', sans-serif;
+}
+```
+
+server.js
+
+```js
+const express = require('express');
+const Database = require('better-sqlite3');
+const path = require('path');
+const app = express();
+const port = 8080;
+
+const db = new Database('./database.sqlite');
+
+const tableCreationStmt = db.prepare(`
+  CREATE TABLE IF NOT EXISTS todos (
+      id INTEGER PRIMARY KEY,
+      text TEXT NOT NULL
+  )
+`);
+
+tableCreationStmt.run();
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/todos', (req, res) => {
+    const todos = db.prepare('SELECT * FROM todos').all();
+    res.json(todos);
+});
+
+app.post('/todos', (req, res) => {
+    const { text } = req.body;
+    const stmt = db.prepare('INSERT INTO todos (text) VALUES (?)');
+    const info = stmt.run(text);
+    const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(info.lastInsertRowid);
+    res.json(todo);
+});
+
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+});
+```
+
+package.json
+
+```json
+{
+  "name": "todo-app",
+  "version": "1.0.0",
+  "description": "A simple todo app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "better-sqlite3": "^7.4.3"
+  }
+}
+```
+
+This code will create a simple todo app where users can add todos. The todos are stored in a SQLite database and are fetched from the server when the page loads. When a user adds a new todo, it is sent to the server, stored in the database, and then added to the list of todos on the page.
